@@ -9,7 +9,10 @@ local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 
-getgenv().Settings = {
+-- SETTINGS FILE
+local fileName = "glokhub_settings.json"
+
+local Settings = {
     Notifier = false,
     AutoGrab = false,
     AutoExecute = false,
@@ -17,14 +20,28 @@ getgenv().Settings = {
     AutoTPBase = false,
     ESPPlayers = false,
     ESPBrainrot = false,
-    XRay = false,
-    Desync = false
+    XRay = false
 }
+
+-- LOAD SETTINGS
+pcall(function()
+    if readfile(fileName) then
+        local data = HttpService:JSONDecode(readfile(fileName))
+        for i,v in pairs(data) do
+            Settings[i] = v
+        end
+    end
+end)
+
+-- SAVE SETTINGS
+local function saveSettings()
+    writefile(fileName, HttpService:JSONEncode(Settings))
+end
 
 local basePosition = nil
 local visitedServers = {}
 
--- NOTIFY + SOUND
+-- NOTIFY
 local function notify(msg)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
@@ -33,12 +50,6 @@ local function notify(msg)
             Duration = 5
         })
     end)
-
-    local sound = Instance.new("Sound", workspace)
-    sound.SoundId = "rbxassetid://9118823104"
-    sound.Volume = 3
-    sound:Play()
-    game.Debris:AddItem(sound, 3)
 end
 
 -- REMOVE OLD GUI
@@ -47,15 +58,14 @@ if CoreGui:FindFirstChild("GlokHub") then
 end
 
 -- GUI
-local gui = Instance.new("ScreenGui")
+local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "GlokHub"
-gui.Parent = CoreGui
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 999
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0,260,0,450)
-frame.Position = UDim2.new(0.5,-130,0.5,-225)
+frame.Size = UDim2.new(0,300,0,400)
+frame.Position = UDim2.new(0.5,-150,0.5,-200)
 frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
 frame.Active = true
 frame.Draggable = true
@@ -66,54 +76,60 @@ title.Text = "GLOK HUB"
 title.TextColor3 = Color3.new(1,1,1)
 title.BackgroundColor3 = Color3.fromRGB(20,20,20)
 
--- X BUTTON
-local close = Instance.new("TextButton", frame)
-close.Size = UDim2.new(0,30,0,30)
-close.Position = UDim2.new(1,-30,0,0)
-close.Text = "X"
-close.TextColor3 = Color3.new(1,1,1)
-close.BackgroundColor3 = Color3.fromRGB(80,0,0)
+-- TABS
+local tab1 = Instance.new("Frame", frame)
+tab1.Size = UDim2.new(1,0,1,-60)
+tab1.Position = UDim2.new(0,0,0,60)
+tab1.BackgroundTransparency = 1
 
--- GH BUTTON
-local openBtn = Instance.new("TextButton", gui)
-openBtn.Size = UDim2.new(0,60,0,30)
-openBtn.Position = UDim2.new(0.5,-30,0,50)
-openBtn.Text = "GH"
-openBtn.TextColor3 = Color3.new(1,1,1)
-openBtn.BackgroundColor3 = Color3.fromRGB(0,0,0)
-openBtn.Visible = false
+local tab2 = tab1:Clone()
+tab2.Parent = frame
+tab2.Visible = false
 
-close.MouseButton1Click:Connect(function()
-    frame.Visible = false
-    openBtn.Visible = true
-end)
-
-openBtn.MouseButton1Click:Connect(function()
-    frame.Visible = true
-    openBtn.Visible = false
-end)
-
--- BUTTONS
-local function toggleButton(name, y, setting)
+local function makeTabButton(name, x, tab)
     local b = Instance.new("TextButton", frame)
-    b.Size = UDim2.new(1,-20,0,30)
-    b.Position = UDim2.new(0,10,0,y)
+    b.Size = UDim2.new(0.5,0,0,30)
+    b.Position = UDim2.new(x,0,0,30)
     b.Text = name
     b.TextColor3 = Color3.new(1,1,1)
     b.BackgroundColor3 = Color3.fromRGB(40,40,40)
 
     b.MouseButton1Click:Connect(function()
-        Settings[setting] = not Settings[setting]
+        tab1.Visible = false
+        tab2.Visible = false
+        tab.Visible = true
+    end)
+end
+
+makeTabButton("Main", 0, tab1)
+makeTabButton("ESP", 0.5, tab2)
+
+-- BUTTON MAKER
+local function toggleButton(parent, name, y, setting)
+    local b = Instance.new("TextButton", parent)
+    b.Size = UDim2.new(1,-20,0,30)
+    b.Position = UDim2.new(0,10,0,y)
+    b.Text = name
+    b.TextColor3 = Color3.new(1,1,1)
+
+    local function update()
         if Settings[setting] then
             b.BackgroundColor3 = Color3.fromRGB(0,170,0)
         else
             b.BackgroundColor3 = Color3.fromRGB(40,40,40)
         end
+    end
+    update()
+
+    b.MouseButton1Click:Connect(function()
+        Settings[setting] = not Settings[setting]
+        update()
+        saveSettings()
     end)
 end
 
-local function normalButton(name, y, callback)
-    local b = Instance.new("TextButton", frame)
+local function button(parent, name, y, callback)
+    local b = Instance.new("TextButton", parent)
     b.Size = UDim2.new(1,-20,0,30)
     b.Position = UDim2.new(0,10,0,y)
     b.Text = name
@@ -122,22 +138,22 @@ local function normalButton(name, y, callback)
     b.MouseButton1Click:Connect(callback)
 end
 
-toggleButton("Notifier", 40, "Notifier")
-toggleButton("Auto Grab", 80, "AutoGrab")
-toggleButton("Auto Execute", 120, "AutoExecute")
-toggleButton("Server Hop", 160, "ServerHop")
-toggleButton("Auto TP Base", 200, "AutoTPBase")
-toggleButton("ESP Players", 240, "ESPPlayers")
-toggleButton("ESP Brainrot", 280, "ESPBrainrot")
-toggleButton("X-Ray", 320, "XRay")
-toggleButton("Desync", 360, "Desync")
+-- TAB 1 (MAIN)
+toggleButton(tab1, "Notifier", 10, "Notifier")
+toggleButton(tab1, "Auto Grab", 50, "AutoGrab")
+toggleButton(tab1, "Auto Execute", 90, "AutoExecute")
+toggleButton(tab1, "Server Hop", 130, "ServerHop")
+toggleButton(tab1, "Auto TP Base", 170, "AutoTPBase")
 
-normalButton("Set Base", 400, function()
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        basePosition = player.Character.HumanoidRootPart.Position
-        notify("Base Set!")
-    end
+button(tab1, "Set Base", 210, function()
+    basePosition = player.Character.HumanoidRootPart.Position
+    notify("Base Set")
 end)
+
+-- TAB 2 (ESP)
+toggleButton(tab2, "ESP Players", 10, "ESPPlayers")
+toggleButton(tab2, "ESP Brainrot", 50, "ESPBrainrot")
+toggleButton(tab2, "X-Ray", 90, "XRay")
 
 -- PLAYER ESP
 RunService.RenderStepped:Connect(function()
@@ -163,51 +179,49 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- BRAINROT SCAN ($100M - $1B)
-local function scanBrainrots()
+-- FIND BRAINROT USING TEXTLABEL "/sec"
+local function findBrainrot()
     for _, v in pairs(workspace:GetDescendants()) do
-        if v.Name == "MoneyPerSecond" or v.Name == "$/sec" or v.Name == "CashPerSecond" then
-            local val = tonumber(v.Value)
-            if val and val >= 100000000 and val <= 1000000000 then
-
-                local model = v:FindFirstAncestorOfClass("Model")
-                if model and model:FindFirstChild("HumanoidRootPart") then
-
-                    if Settings.Notifier then
-                        notify("Brainrot Found: $"..math.floor(val/1000000).."M/sec")
-                    end
-
-                    if Settings.ESPBrainrot then
-                        if not model:FindFirstChild("Highlight") then
-                            local hl = Instance.new("Highlight")
-                            hl.FillColor = Color3.new(1,1,1)
-                            hl.Parent = model
-                        end
-                    end
-
-                    if Settings.AutoExecute and Settings.AutoGrab then
-                        local hrp = player.Character.HumanoidRootPart
-                        hrp.CFrame = model.HumanoidRootPart.CFrame + Vector3.new(0,3,0)
-                        task.wait(0.4)
-
-                        local prompt = model:FindFirstChildOfClass("ProximityPrompt")
-                        if prompt then
-                            fireproximityprompt(prompt)
-                        end
-
-                        if Settings.AutoTPBase and basePosition then
-                            hrp.CFrame = CFrame.new(basePosition)
-                        end
-                    end
-                end
+        if v:IsA("TextLabel") and string.find(string.lower(v.Text), "/sec") then
+            local num = tonumber(string.match(v.Text, "%d+"))
+            if num and num >= 100 then -- 100M+
+                return v:FindFirstAncestorOfClass("Model"), num
             end
         end
     end
 end
 
+-- LOOP
 spawn(function()
-    while task.wait(1) do
-        scanBrainrots()
+    while task.wait(2) do
+        local model, value = findBrainrot()
+
+        if model then
+            if Settings.Notifier then
+                notify("Brainrot Found: "..value.."M/sec")
+            end
+
+            if Settings.ESPBrainrot then
+                if not model:FindFirstChild("Highlight") then
+                    Instance.new("Highlight", model)
+                end
+            end
+
+            if Settings.AutoExecute and Settings.AutoGrab then
+                local hrp = player.Character.HumanoidRootPart
+                hrp.CFrame = model:GetPivot() + Vector3.new(0,3,0)
+                task.wait(0.5)
+
+                local prompt = model:FindFirstChildOfClass("ProximityPrompt", true)
+                if prompt then
+                    fireproximityprompt(prompt)
+                end
+
+                if Settings.AutoTPBase and basePosition then
+                    hrp.CFrame = CFrame.new(basePosition)
+                end
+            end
+        end
 
         if Settings.ServerHop then
             local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
