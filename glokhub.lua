@@ -180,17 +180,35 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- FIND BRAINROT USING TEXTLABEL "/sec"
+-- FIND BRAINROT (supports $120M/sec, 1B/sec, etc.)
+local function getValue(text)
+    text = string.lower(text)
+    local num = string.match(text, "%d+%.?%d*")
+    if not num then return 0 end
+    num = tonumber(num)
+
+    if string.find(text, "b") then
+        num = num * 1000
+    end
+
+    return num
+end
+
 local function findBrainrot()
     for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("TextLabel") and string.find(string.lower(v.Text), "/sec") then
-            local num = tonumber(string.match(v.Text, "%d+"))
-            if num and num >= 100 then -- 100M+
-                return v:FindFirstAncestorOfClass("Model"), num
+        if v:IsA("TextLabel") then
+            if string.find(string.lower(v.Text), "sec") then
+                local value = getValue(v.Text)
+                if value >= 100 then -- 100M+
+                    local model = v:FindFirstAncestorOfClass("Model")
+                    if model then
+                        return model, value
+                    end
+                end
             end
         end
     end
 end
-
 -- LOOP
 spawn(function()
     while task.wait(2) do
@@ -198,7 +216,7 @@ spawn(function()
 
         if model then
             if Settings.Notifier then
-                notify("Brainrot Found: "..value.."M/sec")
+                notify("Found: "..value.."M/sec")
             end
 
             if Settings.ESPBrainrot then
@@ -207,31 +225,29 @@ spawn(function()
                 end
             end
 
-            if Settings.AutoExecute and Settings.AutoGrab then
-                local hrp = player.Character.HumanoidRootPart
-                hrp.CFrame = model:GetPivot() + Vector3.new(0,3,0)
-                task.wait(0.5)
+            if Settings.AutoGrab then
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local hrp = char.HumanoidRootPart
 
-                local prompt = model:FindFirstChildOfClass("ProximityPrompt", true)
-                if prompt then
-                    fireproximityprompt(prompt)
-                end
+                    -- TP TO BRAINROT
+                    hrp.CFrame = model:GetPivot() + Vector3.new(0,3,0)
+                    task.wait(0.5)
 
-                if Settings.AutoTPBase and basePosition then
-                    hrp.CFrame = CFrame.new(basePosition)
-                end
-            end
-        end
+                    -- GRAB
+                    local prompt = model:FindFirstChildOfClass("ProximityPrompt", true)
+                    if prompt then
+                        fireproximityprompt(prompt)
+                        notify("Grabbed Brainrot")
+                    else
+                        notify("No Prompt Found")
+                    end
 
-        if Settings.ServerHop then
-            local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-            local data = HttpService:JSONDecode(game:HttpGet(url))
-
-            for _, s in pairs(data.data) do
-                if s.playing < s.maxPlayers and not visitedServers[s.id] then
-                    visitedServers[s.id] = true
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id)
-                    break
+                    -- TP BACK TO BASE
+                    if Settings.AutoTPBase and basePosition then
+                        task.wait(0.5)
+                        hrp.CFrame = CFrame.new(basePosition)
+                    end
                 end
             end
         end
