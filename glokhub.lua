@@ -6,16 +6,16 @@ local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 
--- SETTINGS FILE
+-- SETTINGS SAVE
 local fileName = "glokhub_settings.json"
 
 local Settings = {
     Notifier = false,
     AutoGrab = false,
-    AutoExecute = false,
     ServerHop = false,
     AutoTPBase = false,
     ESPPlayers = false,
@@ -23,7 +23,6 @@ local Settings = {
     XRay = false
 }
 
--- LOAD SETTINGS
 pcall(function()
     if readfile(fileName) then
         local data = HttpService:JSONDecode(readfile(fileName))
@@ -33,7 +32,6 @@ pcall(function()
     end
 end)
 
--- SAVE SETTINGS
 local function saveSettings()
     writefile(fileName, HttpService:JSONEncode(Settings))
 end
@@ -60,8 +58,8 @@ end
 -- GUI
 local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "GlokHub"
-gui.ResetOnSpawn = false
 gui.DisplayOrder = 999
+gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0,300,0,400)
@@ -86,7 +84,7 @@ local tab2 = tab1:Clone()
 tab2.Parent = frame
 tab2.Visible = false
 
-local function makeTabButton(name, x, tab)
+local function tabButton(name, x, tab)
     local b = Instance.new("TextButton", frame)
     b.Size = UDim2.new(0.5,0,0,30)
     b.Position = UDim2.new(x,0,0,30)
@@ -101,23 +99,19 @@ local function makeTabButton(name, x, tab)
     end)
 end
 
-makeTabButton("Main", 0, tab1)
-makeTabButton("ESP", 0.5, tab2)
+tabButton("Main",0,tab1)
+tabButton("ESP",0.5,tab2)
 
--- BUTTON MAKER
-local function toggleButton(parent, name, y, setting)
-    local b = Instance.new("TextButton", parent)
+-- BUTTONS
+local function toggle(parent,name,y,setting)
+    local b = Instance.new("TextButton",parent)
     b.Size = UDim2.new(1,-20,0,30)
     b.Position = UDim2.new(0,10,0,y)
     b.Text = name
     b.TextColor3 = Color3.new(1,1,1)
 
     local function update()
-        if Settings[setting] then
-            b.BackgroundColor3 = Color3.fromRGB(0,170,0)
-        else
-            b.BackgroundColor3 = Color3.fromRGB(40,40,40)
-        end
+        b.BackgroundColor3 = Settings[setting] and Color3.fromRGB(0,170,0) or Color3.fromRGB(40,40,40)
     end
     update()
 
@@ -128,8 +122,8 @@ local function toggleButton(parent, name, y, setting)
     end)
 end
 
-local function button(parent, name, y, callback)
-    local b = Instance.new("TextButton", parent)
+local function button(parent,name,y,callback)
+    local b = Instance.new("TextButton",parent)
     b.Size = UDim2.new(1,-20,0,30)
     b.Position = UDim2.new(0,10,0,y)
     b.Text = name
@@ -138,116 +132,111 @@ local function button(parent, name, y, callback)
     b.MouseButton1Click:Connect(callback)
 end
 
--- TAB 1 (MAIN)
-toggleButton(tab1, "Notifier", 10, "Notifier")
-toggleButton(tab1, "Auto Grab", 50, "AutoGrab")
-toggleButton(tab1, "Auto Execute", 90, "AutoExecute")
-toggleButton(tab1, "Server Hop", 130, "ServerHop")
-toggleButton(tab1, "Auto TP Base", 170, "AutoTPBase")
+-- MAIN TAB
+toggle(tab1,"Notifier",10,"Notifier")
+toggle(tab1,"Auto Grab",50,"AutoGrab")
+toggle(tab1,"Server Hop",90,"ServerHop")
+toggle(tab1,"Auto TP Base",130,"AutoTPBase")
 
-button(tab1, "Set Base", 210, function()
-    basePosition = player.Character.HumanoidRootPart.Position
-    notify("Base Set")
-end)
-
--- TAB 2 (ESP)
-toggleButton(tab2, "ESP Players", 10, "ESPPlayers")
-toggleButton(tab2, "ESP Brainrot", 50, "ESPBrainrot")
-toggleButton(tab2, "X-Ray", 90, "XRay")
-
--- PLAYER ESP
-RunService.RenderStepped:Connect(function()
-    if Settings.ESPPlayers then
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= player and p.Character then
-                if not p.Character:FindFirstChild("Highlight") then
-                    Instance.new("Highlight", p.Character)
-                end
-            end
-        end
+button(tab1,"Set Base",170,function()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        basePosition = char.HumanoidRootPart.Position
+        notify("Base Set")
     end
 end)
 
--- XRAY
-RunService.RenderStepped:Connect(function()
-    if Settings.XRay then
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.LocalTransparencyModifier = 0.5
-            end
-        end
-    end
-end)
+-- ESP TAB
+toggle(tab2,"ESP Players",10,"ESPPlayers")
+toggle(tab2,"ESP Brainrot",50,"ESPBrainrot")
+toggle(tab2,"X-Ray",90,"XRay")
 
--- FIND BRAINROT USING TEXTLABEL "/sec"
--- FIND BRAINROT (supports $120M/sec, 1B/sec, etc.)
+-- TWEEN TP (NO LAG BACK)
+local function tweenTo(pos)
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local dist = (hrp.Position - pos).Magnitude
+    local speed = 120
+
+    local tween = TweenService:Create(hrp, TweenInfo.new(dist/speed,Enum.EasingStyle.Linear),{CFrame=CFrame.new(pos)})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- VALUE READER
 local function getValue(text)
     text = string.lower(text)
-    local num = string.match(text, "%d+%.?%d*")
-    if not num then return 0 end
-    num = tonumber(num)
-
-    if string.find(text, "b") then
-        num = num * 1000
-    end
-
+    local num = tonumber(string.match(text,"%d+%.?%d*")) or 0
+    if string.find(text,"b") then num = num * 1000 end
     return num
 end
 
+-- FIND BRAINROT
 local function findBrainrot()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("TextLabel") then
-            if string.find(string.lower(v.Text), "sec") then
-                local value = getValue(v.Text)
-                if value >= 100 then -- 100M+
-                    local model = v:FindFirstAncestorOfClass("Model")
-                    if model then
-                        return model, value
-                    end
-                end
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA("TextLabel") and string.find(string.lower(v.Text),"sec") then
+            local val = getValue(v.Text)
+            if val >= 100 and val <= 1000 then
+                local model = v:FindFirstAncestorOfClass("Model")
+                if model then return model,val end
             end
         end
     end
 end
--- LOOP
+
+-- MAIN LOOP
 spawn(function()
     while task.wait(2) do
-        local model, value = findBrainrot()
+        local model,val = findBrainrot()
 
         if model then
             if Settings.Notifier then
-                notify("Found: "..value.."M/sec")
+                notify("Found: "..val.."M/sec")
             end
 
-            if Settings.ESPBrainrot then
-                if not model:FindFirstChild("Highlight") then
-                    Instance.new("Highlight", model)
-                end
+            if Settings.ESPBrainrot and not model:FindFirstChild("Highlight") then
+                Instance.new("Highlight",model)
             end
 
             if Settings.AutoGrab then
-                local char = player.Character
-                if char and char:FindFirstChild("HumanoidRootPart") then
-                    local hrp = char.HumanoidRootPart
+                local hrp = player.Character.HumanoidRootPart
 
-                    -- TP TO BRAINROT
-                    hrp.CFrame = model:GetPivot() + Vector3.new(0,3,0)
-                    task.wait(0.5)
+                tweenTo(model:GetPivot().Position + Vector3.new(0,3,0))
+                task.wait(0.4)
 
-                    -- GRAB
-                    local prompt = model:FindFirstChildOfClass("ProximityPrompt", true)
-                    if prompt then
-                        fireproximityprompt(prompt)
-                        notify("Grabbed Brainrot")
+                local prompt = model:FindFirstChildOfClass("ProximityPrompt",true)
+                if prompt then
+                    fireproximityprompt(prompt)
+                else
+                    local click = model:FindFirstChildOfClass("ClickDetector",true)
+                    if click then
+                        fireclickdetector(click)
                     else
-                        notify("No Prompt Found")
+                        for _,p in pairs(model:GetDescendants()) do
+                            if p:IsA("BasePart") then
+                                firetouchinterest(hrp,p,0)
+                                firetouchinterest(hrp,p,1)
+                            end
+                        end
                     end
+                end
 
-                    -- TP BACK TO BASE
-                    if Settings.AutoTPBase and basePosition then
-                        task.wait(0.5)
-                        hrp.CFrame = CFrame.new(basePosition)
-                    end
+                if Settings.AutoTPBase and basePosition then
+                    tweenTo(basePosition)
+                end
+            end
+        end
+
+        if Settings.ServerHop and (not val or val < 100 or val > 1000) then
+            local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+            local data = HttpService:JSONDecode(game:HttpGet(url))
+
+            for _,s in pairs(data.data) do
+                if s.playing < s.maxPlayers and not visitedServers[s.id] then
+                    visitedServers[s.id] = true
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId,s.id)
+                    break
                 end
             end
         end
